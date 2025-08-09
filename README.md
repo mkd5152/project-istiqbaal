@@ -1,4 +1,66 @@
-# Getting Started with Create React App
+# ITS Scanner
+
+A React application for scanning ITS numbers and storing them in a Supabase database.
+
+## Supabase Setup
+
+### 1. Environment Variables
+
+Create a `.env` file in the root directory with your Supabase configuration:
+
+```env
+REACT_APP_SUPABASE_KEY=your_supabase_anon_key_here
+```
+
+To get your Supabase anon key:
+1. Go to your Supabase project dashboard
+2. Navigate to Settings > API
+3. Copy the "anon public" key from the Project API keys section
+
+### 2. Database Setup
+
+Make sure your Supabase database has the following tables:
+
+#### `users` table
+```sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  its_number VARCHAR(8) UNIQUE NOT NULL,
+  role VARCHAR(10) DEFAULT 'user',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+#### `scans` table
+```sql
+CREATE TABLE scans (
+  id SERIAL PRIMARY KEY,
+  its_number VARCHAR(8) NOT NULL,
+  scanned_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### 3. Row Level Security (RLS)
+
+Enable RLS on the `scans` table and create policies:
+
+```sql
+-- Enable RLS
+ALTER TABLE scans ENABLE ROW LEVEL SECURITY;
+
+-- Policy for inserting scans (any authenticated user)
+CREATE POLICY "Allow authenticated users to insert scans" ON scans
+  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+-- Policy for viewing scans (any authenticated user for now)
+CREATE POLICY "Allow authenticated users to view scans" ON scans
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+-- Alternative: If you want to disable RLS for testing
+-- ALTER TABLE scans DISABLE ROW LEVEL SECURITY;
+```
+
+## Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
