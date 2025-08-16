@@ -1,8 +1,11 @@
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   background-color: #F5F5DC;
@@ -24,4 +27,20 @@ code {
 
 ::placeholder {
   color: rgba(28, 28, 28, 0.6);
+}
+
+/* AG Grid theme tweaks to match your beige/green look */
+.ag-theme-quartz {
+  --ag-background-color: #ffffff;
+  --ag-foreground-color: #1C1C1C;
+  --ag-header-background-color: #006400;
+  --ag-header-foreground-color: #ffffff;
+  --ag-odd-row-background-color: #f6faf7;
+  --ag-row-hover-color: #eef6f1;
+  --ag-selected-row-background-color: #e2f2e8;
+  --ag-border-color: rgba(0, 0, 0, 0.06);
+  --ag-font-size: 14px;
+  --ag-font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  --ag-input-focus-border-color: #006400;
+  --ag-accent-color: #006400;
 }
