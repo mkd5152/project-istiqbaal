@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import CrestPng from '../assets/tkmLogo.png';
+import AdminNav from '../components/AdminNav';
 
 export default function LandingPage({ user, role }) {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export default function LandingPage({ user, role }) {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F5F5DC', color: '#1C1C1C', padding: isNarrow ? 16 : 32 }}>
+      <AdminNav />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ margin: 0, fontSize: 'clamp(26px, 5vw, 48px)', fontWeight: 800 }}>
           Welcome{user?.email ? `, ${user.email.split('@')[0]}` : ''}

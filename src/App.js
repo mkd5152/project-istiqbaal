@@ -1,17 +1,21 @@
+// src/App.js
 import React, { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+
 import LoginPage from './pages/LoginPage';
 import ScanPage from './pages/ScanPage';
 import LandingPage from './pages/LandingPage';
+
 import AdminPage from './pages/AdminPage';
 import UsersPage from './pages/admin/UsersPage';
 import EventsPage from './pages/admin/EventsPage';
 import EventCreate from './pages/admin/EventCreate';
-// import 'ag-grid-community/styles/ag-grid.css';
-// import 'ag-grid-community/styles/ag-theme-quartz.css';
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import EventTypesPage from './pages/admin/EventTypesPage';
+import LocationsPage from './pages/admin/LocationsPage';
+import EntryPointsPage from './pages/admin/EntryPointsPage';
 
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 // Register all Community features
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -31,8 +35,7 @@ function App() {
         .single();
       if (error) console.log('getRole error:', error.message);
       setRole(data?.role || null);
-    } catch (e) {
-      console.log('getRole exception:', e);
+    } catch {
       setRole(null);
     } finally {
       setRoleLoading(false);
@@ -41,7 +44,6 @@ function App() {
 
   useEffect(() => {
     let isMounted = true;
-
     const init = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -56,11 +58,8 @@ function App() {
         } else {
           setUser(null); setRole(null);
         }
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+      } finally { if (isMounted) setLoading(false); }
     };
-
     init();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -75,10 +74,7 @@ function App() {
       }
     });
 
-    return () => {
-      isMounted = false;
-      sub?.subscription?.unsubscribe?.();
-    };
+    return () => { isMounted = false; sub?.subscription?.unsubscribe?.(); };
   }, []);
 
   if (loading) return <div className="p-4">Loading...</div>;
@@ -93,9 +89,20 @@ function App() {
         <Route path="/" element={<LandingPage user={user} role={role} />} />
         <Route path="/scan" element={<ScanPage user={user} />} />
 
-        <Route path="/admin" element={<AdminRoute><AdminPage user={user} /></AdminRoute>}>
+        {/* ADMIN LAYOUT + CHILD ROUTES */}
+        <Route
+          path="/admin"
+          element={<AdminRoute><AdminPage /></AdminRoute>}
+        >
           <Route index element={<Navigate to="users" replace />} />
+          {/* Setup */}
           <Route path="users" element={<UsersPage />} />
+          <Route path="setup">
+            <Route path="event-types" element={<EventTypesPage />} />
+            <Route path="locations" element={<LocationsPage />} />
+            <Route path="entry-points" element={<EntryPointsPage />} />
+          </Route>
+          {/* Events */}
           <Route path="events" element={<EventsPage />} />
           <Route path="events/new" element={<EventCreate />} />
         </Route>
