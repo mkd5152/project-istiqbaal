@@ -1,12 +1,13 @@
 // src/App.js
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 
-// PAGES
+// Pages
 import LoginPage from './pages/LoginPage';
 import ScanPage from './pages/ScanPage';
 import LandingPage from './pages/LandingPage';
+
 import AdminPage from './pages/AdminPage';
 import UsersPage from './pages/admin/UsersPage';
 import EventsPage from './pages/admin/EventsPage';
@@ -15,7 +16,7 @@ import EventTypesPage from './pages/admin/EventTypesPage';
 import LocationsPage from './pages/admin/LocationsPage';
 import EntryPointsPage from './pages/admin/EntryPointsPage';
 
-// AG Grid community registration
+// ag-Grid (register community modules once)
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -24,10 +25,24 @@ function App() {
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [roleLoading, setRoleLoading] = useState(false);
+
+  // Track last-seen identity so we don't re-fetch on token refresh / tab focus
+  const lastUserIdRef = useRef(null);
   const lastITSRef = useRef(null);
+
+  const getITSFromUser = (u) => {
+    if (!u) return null;
+    const metaITS = u.user_metadata?.its_number;
+    const emailITS = u.email ? u.email.split('@')[0] : null;
+    return metaITS || emailITS || null;
+  };
 
   const getRole = useCallback(async (its_number) => {
     try {
+      if (!its_number) {
+        setRole(null);
+        return;
+      }
       setRoleLoading(true);
       const { data, error } = await supabase
         .from('users')
@@ -46,58 +61,72 @@ function App() {
   useEffect(() => {
     let isMounted = true;
 
-    const init = async () => {
+    (async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
         if (!isMounted) return;
         if (error) console.log('getSession error:', error.message);
 
         if (session?.user) {
-          setUser(session.user);
-          const itsFromMeta = session.user.user_metadata?.its_number;
-          const itsFromEmail = session.user.email ? session.user.email.split('@')[0] : null;
-          const its = itsFromMeta || itsFromEmail;
+          const u = session.user;
+          setUser(u);
+          lastUserIdRef.current = u.id;
 
-          if (its) {
-            if (lastITSRef.current !== its) {
-              lastITSRef.current = its;
-              getRole(its);
-            }
-          } else {
-            setRole(null);
+          const its = getITSFromUser(u);
+          if (its && lastITSRef.current !== its) {
+            lastITSRef.current = its;
+            getRole(its);
           }
         } else {
           setUser(null);
           setRole(null);
+          lastUserIdRef.current = null;
           lastITSRef.current = null;
         }
       } finally {
         if (isMounted) setLoading(false);
       }
-    };
-
-    init();
+    })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // Ignore harmless focus/refresh events which otherwise cause rerenders
+      if (event === 'TOKEN_REFRESH' || event === 'INITIAL_SESSION') {
+        return;
+      }
+
       if (!session?.user) {
         setUser(null);
         setRole(null);
+        lastUserIdRef.current = null;
         lastITSRef.current = null;
         return;
       }
 
-      setUser(session.user);
+      const u = session.user;
 
-      const itsFromMeta = session.user.user_metadata?.its_number;
-      const itsFromEmail = session.user.email ? session.user.email.split('@')[0] : null;
-      const its = itsFromMeta || itsFromEmail;
+      // Only update app state if the actual user changed
+      if (lastUserIdRef.current !== u.id) {
+        lastUserIdRef.current = u.id;
+        setUser(u);
+      }
 
-      if (!its) return;
-
-      // Only (re)fetch role on meaningful events or when ITS changes
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || lastITSRef.current !== its) {
+      // Fetch role only when we have a (new) ITS
+      const its = getITSFromUser(u);
+      if (its && lastITSRef.current !== its) {
         lastITSRef.current = its;
         getRole(its);
+      }
+
+      // If you want a guaranteed refresh on SIGNED_IN/USER_UPDATED, keep this:
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        const its2 = getITSFromUser(u);
+        if (its2 && lastITSRef.current !== its2) {
+          lastITSRef.current = its2;
+          getRole(its2);
+        }
       }
     });
 
@@ -107,26 +136,34 @@ function App() {
     };
   }, [getRole]);
 
-  // Loading gates
   if (loading) return <div className="p-4">Loading...</div>;
   if (!user) return <LoginPage onLogin={setUser} setRole={setRole} />;
-  // Only block if role is truly unknown; don't flicker once known
-  if (roleLoading && role == null) return <div className="p-4">Loading...</div>;
+  if (roleLoading && role !== 'admin') return <div className="p-4">Loading...</div>;
 
-  const AdminRoute = ({ children }) => (role === 'admin' ? children : <Navigate to="/" replace />);
+  // Guard for Admin-only routes
+  const AdminRoute = ({ children }) =>
+    role === 'admin' ? children : <Navigate to="/" replace />;
 
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public / Common */}
+        {/* Public / Shared */}
         <Route path="/" element={<LandingPage user={user} role={role} />} />
         <Route path="/scan" element={<ScanPage user={user} />} />
 
-        {/* Admin layout with nested routes */}
-        <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>}>
+        {/* Admin layout + nested routes */}
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminPage />
+            </AdminRoute>
+          }
+        >
+          {/* Default to Users on /admin */}
           <Route index element={<Navigate to="users" replace />} />
 
-          {/* Setup (master data) */}
+          {/* Setup */}
           <Route path="users" element={<UsersPage />} />
           <Route path="setup">
             <Route path="event-types" element={<EventTypesPage />} />
