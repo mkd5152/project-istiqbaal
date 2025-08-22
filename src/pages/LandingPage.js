@@ -38,7 +38,10 @@ export default function LandingPage({ user, role }) {
         <div style={card}>
           <h2 style={{ marginTop: 0 }}>Quick Scan</h2>
           <p>Record attendance with ITS cards.</p>
-          <button style={btn} onClick={() => navigate('/scan')}>Open Scanner</button>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button style={btn} onClick={() => navigate('/scan')}>Open Scanner</button>
+            <button style={btn} onClick={() => navigate('admin/view-scans')}>View Scans</button>
+          </div>
         </div>
 
         {isAdmin && (

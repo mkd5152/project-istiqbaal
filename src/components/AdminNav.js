@@ -23,6 +23,13 @@ const adminNav = [
             { label: 'Create Event', path: '/admin/events/new' },
         ],
     },
+    {
+        label: 'Scans',
+        children: [
+            { label: 'Scan ITS', path: '/scan' },
+            { label: 'View Scanned ITS', path: '/admin/view-scans' },
+        ],
+    },
 ];
 
 export default function AdminNav() {

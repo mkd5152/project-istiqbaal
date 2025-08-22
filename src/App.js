@@ -18,6 +18,7 @@ import EntryPointsPage from './pages/admin/EntryPointsPage';
 
 // ag-Grid (register community modules once)
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import ViewScans from './pages/admin/ViewScans';
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 function App() {
@@ -170,6 +171,8 @@ function App() {
             <Route path="locations" element={<LocationsPage />} />
             <Route path="entry-points" element={<EntryPointsPage />} />
           </Route>
+
+          <Route path="view-scans" element={<ViewScans />} />
 
           {/* Events */}
           <Route path="events" element={<EventsPage />} />
