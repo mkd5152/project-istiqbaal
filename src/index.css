@@ -44,3 +44,7 @@ code {
   --ag-input-focus-border-color: #006400;
   --ag-accent-color: #006400;
 }
+
+.ag-cell-invalid {
+  box-shadow: inset 0 0 0 2px #8B0000 !important;
+}
