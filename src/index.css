@@ -1,3 +1,35 @@
+/* --- Volte font faces --- */
+@font-face {
+  font-family: 'Volte';
+  src: url('./assets/fonts/Volte-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Volte';
+  src: url('./assets/fonts/Volte-Semibold.woff2') format('woff2');
+  font-weight: 600;
+  /* Semibold */
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Volte';
+  src: url('./assets/fonts/Volte-Semibold.woff2') format('woff2');
+  font-weight: 700;
+  /* alias */
+  font-style: normal;
+  font-display: swap;
+}
+
+/* --- Global defaults --- */
+:root {
+  --app-font: 'Volte', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
 html,
 body,
 #root {
@@ -9,27 +41,29 @@ body {
   margin: 0;
   padding: 0;
   background-color: #F5F5DC;
-}
-
-body {
-  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  color: #1C1C1C;
+  font-family: var(--app-font) !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #1C1C1C;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: var(--app-font) !important;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: var(--app-font) !important;
 }
 
+/* Placeholder color */
 ::placeholder {
-  color: rgba(28, 28, 28, 0.6);
+  color: rgba(28, 28, 28, .6);
 }
 
-/* AG Grid theme tweaks to match your beige/green look */
+/* AG Grid theme*/
 .ag-theme-quartz {
   --ag-background-color: #ffffff;
   --ag-foreground-color: #1C1C1C;
@@ -40,11 +74,12 @@ code {
   --ag-selected-row-background-color: #e2f2e8;
   --ag-border-color: rgba(0, 0, 0, 0.06);
   --ag-font-size: 14px;
-  --ag-font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  --ag-font-family: var(--app-font) !important;
   --ag-input-focus-border-color: #006400;
   --ag-accent-color: #006400;
 }
 
+/* Validation highlight */
 .ag-cell-invalid {
   box-shadow: inset 0 0 0 2px #8B0000 !important;
 }

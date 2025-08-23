@@ -102,7 +102,6 @@ const CrudGrid = forwardRef(function CrudGrid(
   }, []);
 
   const onDeleteExisting = useCallback(async (row) => {
-    if (!window.confirm('Delete this record?')) return;
     try {
       await deleteRows([row]);
       gridRef.current?.api?.applyTransaction?.({ remove: [row] });
