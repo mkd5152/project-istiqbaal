@@ -140,14 +140,29 @@ const CrudGrid = forwardRef(function CrudGrid(
     gridRef.current?.api?.stopEditing(true);  // cancel
   }, []);
 
-  const actionCol = useMemo(() => ({
-    headerName: '',
-    field: '__actions',
-    width: 220,
-    sortable: false,
-    filter: false,
-    cellRenderer: CrudActionsRenderer
-  }), []);
+  const actionCol = useMemo(
+    () => ({
+      headerName: '',
+      field: '__actions',
+      width: 180,
+      minWidth: 160,
+      maxWidth: 200,
+      sortable: false,
+      filter: false,
+      resizable: false,
+      suppressMenu: true,
+      pinned: 'right',
+      lockPinned: true,
+      cellRenderer: CrudActionsRenderer,
+      cellStyle: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        paddingRight: '8px',
+      },
+    }),
+    []
+  );
 
   const columnDefs = useMemo(() => ([...columns, actionCol]), [columns, actionCol]);
 
