@@ -35,7 +35,7 @@ function buildNewEventType() {
 /** ---------- Supabase adapters ---------- */
 async function loadEventTypes() {
   const { data, error } = await supabase
-    .from('event_type')
+    .from('event_types')
     .select('*')
     .order('id', { ascending: true });
   if (error) throw error;
@@ -53,7 +53,7 @@ async function createEventType(row) {
     throw new Error('Please fill Code (2–32 chars), Name, and valid Status.');
   }
   const { data, error } = await supabase
-    .from('event_type')
+    .from('event_types')
     .insert(payload)
     .select()
     .single();
@@ -75,7 +75,7 @@ async function updateEventType(row) {
     throw new Error('Please fill Code (2–32 chars), Name, and valid Status.');
   }
   const { error } = await supabase
-    .from('event_type')
+    .from('event_types')
     .update(payload)
     .eq('id', row.id);
   if (error) {
@@ -86,7 +86,7 @@ async function updateEventType(row) {
 
 async function deleteEventTypes(rows) {
   const ids = rows.map((r) => r.id);
-  const { error } = await supabase.from('event_type').delete().in('id', ids);
+  const { error } = await supabase.from('event_types').delete().in('id', ids);
   if (error) throw error;
 }
 

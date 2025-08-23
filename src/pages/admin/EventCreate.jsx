@@ -60,7 +60,7 @@ export default function EventCreate() {
     (async () => {
       try {
         const [{ data: t }, { data: locs }, { data: eps }] = await Promise.all([
-          supabase.from('event_type').select('id, name, code, status').order('name'),
+          supabase.from('event_types').select('id, name, code, status').order('name'),
           supabase.from('locations').select('id, name').order('name'),
           supabase.from('entry_points').select('id, name, location_id').order('name'),
         ]);
@@ -385,7 +385,7 @@ export default function EventCreate() {
                 </div>
 
                 <div>
-                  <label style={label}>Entry Points (optional, multi)</label>
+                  <label style={label}>Entry Points (multiple)</label>
                   <select
                     multiple
                     style={{ ...selectStyle, minHeight: 120 }}

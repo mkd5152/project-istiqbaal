@@ -10,7 +10,9 @@ if (!supabaseKey) {
   console.error('Example: REACT_APP_SUPABASE_KEY=your_supabase_anon_key_here');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  db: { schema: process.env.REACT_APP_SUPABASE_DB || 'public' }
+})
 
 // Debug: Log the key type (first few characters)
 console.log('Supabase key type:', supabaseKey ? supabaseKey.substring(0, 10) + '...' : 'Not set');
