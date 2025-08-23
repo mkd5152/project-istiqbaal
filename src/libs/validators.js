@@ -23,3 +23,25 @@ export function makeUserValidator({ roles, statuses }) {
     return true;
   };
 }
+
+export const isEventTypeCode = (v) => {
+  const s = String(v ?? '')
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+    .replace(/[^A-Z0-9_]/g, '')
+    .slice(0, 32);
+  return s.length >= 2 && s.length <= 32;
+};
+
+export const makeEventTypeValidator = ({ statuses = ['active', 'inactive'] } = {}) => {
+  return (row) => {
+    // code check
+    if (!isEventTypeCode(row?.code)) return false;
+    // name required
+    if (!String(row?.name ?? '').trim()) return false;
+    // status check
+    const s = String(row?.status ?? '').toLowerCase();
+    if (!statuses.includes(s)) return false;
+    return true;
+  };
+};

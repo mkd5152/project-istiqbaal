@@ -1,97 +1,46 @@
+// src/pages/admin/EventTypesPage.jsx
 import React, { useMemo, useRef } from 'react';
-import { supabase } from '../../supabaseClient';
-import CrudGrid from './CrudGrid';
+import CrudGrid from '../../components/grids/CrudGrid';
+import { db, sanitize, v, constants } from '../../libs';
 
-/** ---------- helpers & validation ---------- */
-const STATUSES = ['active', 'inactive'];
+// --- constants / table ---
+const TABLE = 'event_types';
+const STATUS = constants.STATUS || ['active', 'inactive'];
 
-function sanitizeCode(v) {
-  // Uppercase, spaces & dashes -> underscore, strip non [A-Z0-9_], trim to 32
-  const s = String(v || '')
-    .toUpperCase()
-    .replace(/[\s-]+/g, '_')
-    .replace(/[^A-Z0-9_]/g, '')
-    .slice(0, 32);
-  return s;
-}
-function normalizeStatus(v) {
-  const s = String(v || '').toLowerCase();
-  return STATUSES.includes(s) ? s : 'active';
-}
-function isValidCode(v) {
-  const s = sanitizeCode(v);
-  return s.length >= 2 && s.length <= 32;
-}
-function validateEventType(row) {
-  if (!isValidCode(row.code)) return false;
-  if (!String(row.name || '').trim()) return false;
-  if (!STATUSES.includes(normalizeStatus(row.status))) return false;
-  return true;
-}
+// --- validators & sanitizers ---
+const validateEventType = v.makeEventTypeValidator({ statuses: STATUS });
+
+const sanitizeInsert = (row) => ({
+  code: sanitize.sanitizeCode(row.code),
+  name: sanitize.sanitizeName(row.name),
+  description: sanitize.nullIfEmpty(row.description),
+  status: sanitize.normalizeOneOf(row.status, STATUS, 'active'),
+});
+
+const sanitizeUpdate = (row) => ({
+  id: row.id,
+  code: sanitize.sanitizeCode(row.code),
+  name: sanitize.sanitizeName(row.name),
+  description: sanitize.nullIfEmpty(row.description),
+  status: sanitize.normalizeOneOf(row.status, STATUS, 'active'),
+});
+
+// --- CRUD binding (uses your generic helpers) ---
+const etCrud = db.makeCrud({
+  schema: process.env.REACT_APP_SUPABASE_DB, // set to "itsscanning" in .env
+  table: TABLE,
+  pk: 'id',
+  select: 'id,code,name,description,status,created_at',
+  sanitizeInsert,
+  sanitizeUpdate,
+  validate: validateEventType,
+});
+
 function buildNewEventType() {
   return { code: '', name: '', description: '', status: 'active' };
 }
 
-/** ---------- Supabase adapters ---------- */
-async function loadEventTypes() {
-  const { data, error } = await supabase
-    .from('event_types')
-    .select('*')
-    .order('id', { ascending: true });
-  if (error) throw error;
-  return data || [];
-}
-
-async function createEventType(row) {
-  const payload = {
-    code: sanitizeCode(row.code),
-    name: String(row.name || '').trim(),
-    description: row.description ? String(row.description) : null,
-    status: normalizeStatus(row.status),
-  };
-  if (!validateEventType(payload)) {
-    throw new Error('Please fill Code (2–32 chars), Name, and valid Status.');
-  }
-  const { data, error } = await supabase
-    .from('event_types')
-    .insert(payload)
-    .select()
-    .single();
-  if (error) {
-    if (error.code === '23505') throw new Error('Code already exists.');
-    throw error;
-  }
-  return data;
-}
-
-async function updateEventType(row) {
-  const payload = {
-    code: sanitizeCode(row.code),
-    name: String(row.name || '').trim(),
-    description: row.description ? String(row.description) : null,
-    status: normalizeStatus(row.status),
-  };
-  if (!validateEventType(payload)) {
-    throw new Error('Please fill Code (2–32 chars), Name, and valid Status.');
-  }
-  const { error } = await supabase
-    .from('event_types')
-    .update(payload)
-    .eq('id', row.id);
-  if (error) {
-    if (error.code === '23505') throw new Error('Code already exists.');
-    throw error;
-  }
-}
-
-async function deleteEventTypes(rows) {
-  const ids = rows.map((r) => r.id);
-  const { error } = await supabase.from('event_types').delete().in('id', ids);
-  if (error) throw error;
-}
-
-/** ---------- Page wired to CrudGrid ---------- */
-export default function EventTypeGrid() {
+export default function EventTypesPage() {
   const gridRef = useRef(null);
 
   const columns = useMemo(
@@ -102,13 +51,15 @@ export default function EventTypeGrid() {
         headerName: 'Code',
         field: 'code',
         editable: true,
-        width: 200,
+        width: 220,
         valueSetter: (p) => {
-          p.data.code = sanitizeCode(p.newValue);
+          p.data.code = sanitize.sanitizeCode(p.newValue);
           return true;
         },
-        cellClassRules: { 'ag-cell-invalid': (params) => !isValidCode(params.value) },
-        tooltipValueGetter: () => '2–32 chars. Only A–Z, 0–9, underscore.',
+        cellClassRules: {
+          'ag-cell-invalid': (params) => !v.isEventTypeCode(params.value),
+        },
+        tooltipValueGetter: () => '2–32 chars. A–Z, 0–9, underscores only (auto-sanitized).',
       },
 
       {
@@ -116,9 +67,13 @@ export default function EventTypeGrid() {
         field: 'name',
         editable: true,
         flex: 1,
-        minWidth: 220,
+        minWidth: 240,
+        valueSetter: (p) => {
+          p.data.name = sanitize.sanitizeName(p.newValue);
+          return true;
+        },
         cellClassRules: {
-          'ag-cell-invalid': (params) => !String(params.value || '').trim(),
+          'ag-cell-invalid': (params) => !sanitize.sanitizeName(params.value),
         },
       },
 
@@ -127,7 +82,11 @@ export default function EventTypeGrid() {
         field: 'description',
         editable: true,
         flex: 1,
-        minWidth: 260,
+        minWidth: 300,
+        valueSetter: (p) => {
+          p.data.description = sanitize.nullIfEmpty(p.newValue);
+          return true;
+        },
       },
 
       {
@@ -136,13 +95,14 @@ export default function EventTypeGrid() {
         editable: true,
         width: 160,
         cellEditor: 'agSelectCellEditor',
-        cellEditorParams: { values: STATUSES },
+        cellEditorParams: { values: STATUS },
         valueSetter: (p) => {
-          p.data.status = normalizeStatus(p.newValue);
+          p.data.status = sanitize.normalizeOneOf(p.newValue, STATUS, 'active');
           return true;
         },
         cellClassRules: {
-          'ag-cell-invalid': (params) => !STATUSES.includes(normalizeStatus(params.value)),
+          'ag-cell-invalid': (params) =>
+            !STATUS.includes(sanitize.normalizeOneOf(params.value, STATUS, 'active')),
         },
       },
 
@@ -154,7 +114,6 @@ export default function EventTypeGrid() {
         valueFormatter: (p) =>
           p.value
             ? new Date(p.value).toLocaleString('en-GB', {
-              timeZone: 'Asia/Dubai',
               year: 'numeric',
               month: 'short',
               day: '2-digit',
@@ -172,10 +131,10 @@ export default function EventTypeGrid() {
       ref={gridRef}
       title="Event Types"
       columns={columns}
-      loadRows={loadEventTypes}
-      createRow={createEventType}
-      updateRow={updateEventType}
-      deleteRows={deleteEventTypes}
+      loadRows={() => etCrud.load({ orderBy: 'id', ascending: true })}
+      createRow={etCrud.create}
+      updateRow={etCrud.update}
+      deleteRows={etCrud.remove}           // soft-delete supported by helper
       buildNewRow={buildNewEventType}
       getRowKey={(r) => r.id}
       validate={validateEventType}
