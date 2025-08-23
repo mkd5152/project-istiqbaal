@@ -67,16 +67,42 @@ code {
 .ag-theme-quartz {
   --ag-background-color: #ffffff;
   --ag-foreground-color: #1C1C1C;
+  /* body text stays dark */
   --ag-header-background-color: #006400;
+  /* or your lighter green */
   --ag-header-foreground-color: #ffffff;
+  /* header text color var */
   --ag-odd-row-background-color: #f6faf7;
   --ag-row-hover-color: #eef6f1;
   --ag-selected-row-background-color: #e2f2e8;
   --ag-border-color: rgba(0, 0, 0, 0.06);
   --ag-font-size: 14px;
   --ag-font-family: var(--app-font) !important;
-  --ag-input-focus-border-color: #006400;
-  --ag-accent-color: #006400;
+  --ag-input-focus-border-color: #0B7A0B;
+  --ag-accent-color: #0B7A0B;
+}
+
+/* Belt & suspenders: explicitly force white in header text & icons */
+.ag-theme-quartz .ag-header-cell-text,
+.ag-theme-quartz .ag-header-group-text {
+  color: #fff !important;
+}
+
+.ag-theme-quartz .ag-header .ag-icon {
+  color: #fff !important;
+  fill: #fff !important;
+}
+
+/* Optional: centered & bold headers (keeps body unchanged) */
+.ag-theme-quartz .ag-header-cell-text,
+.ag-theme-quartz .ag-header-group-text {
+  font-weight: 700;
+}
+
+.ag-theme-quartz .ag-header-cell-label,
+.ag-theme-quartz .ag-header-group-cell-label {
+  justify-content: center;
+  text-align: center;
 }
 
 /* Validation highlight */
