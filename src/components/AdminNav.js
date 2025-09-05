@@ -14,6 +14,7 @@ const adminNav = [
             { label: 'Event Type', path: '/admin/setup/event-types' },
             { label: 'Location', path: '/admin/setup/locations' },
             { label: 'Entry Points', path: '/admin/setup/entry-points' },
+            { label: 'Dump', path: '/admin/setup/dump' },
         ],
     },
     {

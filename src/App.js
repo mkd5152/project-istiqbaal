@@ -15,6 +15,7 @@ import EventCreate from './pages/admin/EventCreate';
 import EventTypesPage from './pages/admin/EventTypesPage';
 import LocationsPage from './pages/admin/LocationsPage';
 import EntryPointsPage from './pages/admin/EntryPointsPage';
+import DumpPage from './pages/admin/DumpPage';
 
 // ag-Grid (register community modules once)
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
@@ -170,6 +171,7 @@ function App() {
             <Route path="event-types" element={<EventTypesPage />} />
             <Route path="locations" element={<LocationsPage />} />
             <Route path="entry-points" element={<EntryPointsPage />} />
+            <Route path="dump" element={<DumpPage />} />
           </Route>
 
           <Route path="view-scans" element={<ViewScans />} />
