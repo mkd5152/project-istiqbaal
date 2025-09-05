@@ -17,14 +17,38 @@ export async function loadRows({
   page,
   range,
   filters = [],
-  includeDeleted = false,     // <— NEW: hide soft-deleted by default
+  includeDeleted = false,     // hide soft-deleted by default
   signal,
+  where,                      // <-- NEW
 }) {
   let q = fromTable(schema, table).select(select, { head: false });
 
   // hide soft-deleted by default
   if (!includeDeleted) q = q.is('deleted_at', null);
 
+  // NEW: where — a simple object of column -> value or column -> {op: val}
+  if (where && typeof where === 'object') {
+    for (const [col, val] of Object.entries(where)) {
+      if (val === null) {
+        q = q.is(col, null);
+      } else if (Array.isArray(val)) {
+        // shorthand: { col: [a,b,c] } -> IN
+        q = q.in(col, val);
+      } else if (typeof val === 'object') {
+        // advanced: { col: { ilike: '%x%', gte: 10, in: [...] } }
+        for (const [op, v] of Object.entries(val)) {
+          if (op === 'in') q = q.in(col, Array.isArray(v) ? v : []);
+          else if (op === 'is') q = q.is(col, v);
+          else if (typeof q[op] === 'function') q = q[op](col, v);
+        }
+      } else {
+        // default eq
+        q = q.eq(col, val);
+      }
+    }
+  }
+
+  // existing filters array still works
   for (const f of filters) {
     if (!f) continue;
     const { fn = 'eq', col, val, args = [] } = f;
