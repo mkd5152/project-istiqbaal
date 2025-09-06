@@ -1,3 +1,4 @@
+// src/components/grids/CrudGrid.jsx
 import React, {
   forwardRef, useCallback, useEffect, useImperativeHandle,
   useMemo, useRef, useState
@@ -14,6 +15,10 @@ import CrudActionsRenderer from './CrudActionsRenderer';
  *  - validate?(row): boolean
  *  - pageSize?: number
  *  - title?: string
+ *  - readOnly?: boolean                // NEW: disables editing & actions
+ *  - showAddButton?: boolean           // NEW: default true (ignored if readOnly)
+ *  - showRefreshButton?: boolean       // NEW: default true
+ *  - showActions?: boolean             // NEW: default true (ignored if readOnly)
  */
 const CrudGrid = forwardRef(function CrudGrid(
   {
@@ -26,7 +31,11 @@ const CrudGrid = forwardRef(function CrudGrid(
     getRowKey,
     validate,
     pageSize = 20,
-    title
+    title,
+    readOnly = false,          // NEW
+    showAddButton = true,      // NEW
+    showRefreshButton = true,  // NEW
+    showActions = true,        // NEW
   },
   ref
 ) {
@@ -60,6 +69,7 @@ const CrudGrid = forwardRef(function CrudGrid(
 
   useImperativeHandle(ref, () => ({
     addNewRow() {
+      if (readOnly) return;
       const api = gridRef.current?.api;
       const tempId = 'new-' + Date.now();
       const blank = buildNewRow ? buildNewRow() : {};
@@ -71,9 +81,10 @@ const CrudGrid = forwardRef(function CrudGrid(
       setTimeout(() => api.startEditingCell({ rowIndex: 0, colKey: firstEditable }), 0);
     },
     refresh() { load(); }
-  }), [buildNewRow, columns, load]);
+  }), [buildNewRow, columns, load, readOnly]);
 
   const onEdit = useCallback((row) => {
+    if (readOnly) return;
     const id = rowKey(row);
     const api = gridRef.current?.api;
     const rowNode = api.getRowNode(id) || api.getDisplayedRowAtIndex(api.getDisplayedRowCount() - 1);
@@ -81,7 +92,7 @@ const CrudGrid = forwardRef(function CrudGrid(
     const firstEditable = columns.find(c => c.editable && !c.hide)?.field || columns[0]?.field;
     setEditingRowId(id);
     api.startEditingCell({ rowIndex, colKey: firstEditable });
-  }, [columns, rowKey]);
+  }, [columns, rowKey, readOnly]);
 
   const onSaveNew = useCallback(async (row) => {
     try {
@@ -114,6 +125,7 @@ const CrudGrid = forwardRef(function CrudGrid(
 
   // Persist existing row edits
   const onRowValueChanged = useCallback(async (e) => {
+    if (readOnly) return;
     const r = e.data;
     if (r.__isNew) return; // handled separately
     try {
@@ -122,15 +134,17 @@ const CrudGrid = forwardRef(function CrudGrid(
       alert('Save failed: ' + (err.message || 'Unknown error'));
       load(); // revert
     }
-  }, [updateRow, load]);
+  }, [updateRow, load, readOnly]);
 
   const onRowEditingStarted = useCallback((e) => {
+    if (readOnly) return;
     setEditingRowId(rowKey(e.data));
-  }, [rowKey]);
+  }, [rowKey, readOnly]);
 
   const onRowEditingStopped = useCallback(() => {
+    if (readOnly) return;
     setEditingRowId(null);
-  }, []);
+  }, [readOnly]);
 
   const commitEdits = useCallback(() => {
     gridRef.current?.api?.stopEditing(false); // save
@@ -138,6 +152,12 @@ const CrudGrid = forwardRef(function CrudGrid(
   const cancelEdits = useCallback(() => {
     gridRef.current?.api?.stopEditing(true);  // cancel
   }, []);
+
+  // Build columns: force editable=false when readOnly
+  const baseColumns = useMemo(
+    () => (readOnly ? columns.map(c => ({ ...c, editable: false })) : columns),
+    [columns, readOnly]
+  );
 
   const actionCol = useMemo(
     () => ({
@@ -163,7 +183,10 @@ const CrudGrid = forwardRef(function CrudGrid(
     []
   );
 
-  const columnDefs = useMemo(() => ([...columns, actionCol]), [columns, actionCol]);
+  const columnDefs = useMemo(
+    () => (readOnly || !showActions ? baseColumns : [...baseColumns, actionCol]),
+    [baseColumns, actionCol, readOnly, showActions]
+  );
 
   // header styles & buttons
   const headerStyle = {
@@ -183,8 +206,12 @@ const CrudGrid = forwardRef(function CrudGrid(
       <div style={headerStyle}>
         <h2 style={{ margin: 0 }}>{title || ''}</h2>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => ref?.current?.addNewRow?.()} style={primaryBtn}>+ Add New</button>
-          <button onClick={() => ref?.current?.refresh?.()} style={ghostBtn}>Refresh</button>
+          {!readOnly && showAddButton && (
+            <button onClick={() => ref?.current?.addNewRow?.()} style={primaryBtn}>+ Add New</button>
+          )}
+          {showRefreshButton && (
+            <button onClick={() => ref?.current?.refresh?.()} style={ghostBtn}>Refresh</button>
+          )}
         </div>
       </div>
 
@@ -196,7 +223,6 @@ const CrudGrid = forwardRef(function CrudGrid(
           defaultColDef={{ sortable: true, filter: true, resizable: true }}
           getRowId={(p) => rowKey(p.data)}
           context={{
-            // made available to the actions renderer
             rowKey,
             editingRowId,
             isRowValid,
@@ -207,11 +233,12 @@ const CrudGrid = forwardRef(function CrudGrid(
             commitEdits,
             cancelEdits
           }}
-          editType="fullRow"
-          stopEditingWhenCellsLoseFocus
-          onRowValueChanged={onRowValueChanged}
-          onRowEditingStarted={onRowEditingStarted}
-          onRowEditingStopped={onRowEditingStopped}
+          editType={readOnly ? undefined : 'fullRow'}
+          stopEditingWhenCellsLoseFocus={!readOnly}
+          suppressClickEdit={readOnly}
+          onRowValueChanged={readOnly ? undefined : onRowValueChanged}
+          onRowEditingStarted={readOnly ? undefined : onRowEditingStarted}
+          onRowEditingStopped={readOnly ? undefined : onRowEditingStopped}
           rowSelection="multiple"
           pagination
           paginationPageSize={pageSize}
