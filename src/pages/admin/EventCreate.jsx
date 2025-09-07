@@ -1,14 +1,9 @@
+// src/pages/admin/EventCreate.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 
-/**
- * EventCreatePage
- * - Creates a Event
- * - Creates one or more Location (events rows) under that Event
- * - Links gates via event_entry_points
- *
- * Requires tables: programs, events, event_entry_points, event_type, locations, entry_points
- */
+const SCHEMA = process.env.REACT_APP_SUPABASE_DB; // "itsscanning"
+
 export default function EventCreate() {
   const [isNarrow, setIsNarrow] = useState(
     typeof window !== 'undefined' ? window.innerWidth < 900 : false
@@ -17,7 +12,8 @@ export default function EventCreate() {
   // Lookups
   const [types, setTypes] = useState([]);
   const [locations, setLocations] = useState([]);
-  const [entryPoints, setEntryPoints] = useState([]); // all EPs; we’ll filter client-side
+  const [entryPoints, setEntryPoints] = useState([]);
+
   const entryPointsByLocation = useMemo(() => {
     const map = new Map();
     (entryPoints || []).forEach(ep => {
@@ -25,13 +21,11 @@ export default function EventCreate() {
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(ep);
     });
-    // sort each list by name
-    for (const [k, arr] of map.entries()) arr.sort((a, b) => a.name.localeCompare(b.name));
+    for (const [, arr] of map.entries()) arr.sort((a, b) => a.name.localeCompare(b.name));
     return map;
   }, [entryPoints]);
 
-  // Event form
-  const [program, setProgram] = useState({
+  const [eventInfo, setEventInfo] = useState({
     title: '',
     event_type_id: '',
     description: '',
@@ -39,12 +33,12 @@ export default function EventCreate() {
     require_print: false,
   });
 
-  // Location list (multi)
+  // Occurrences -> itsscanning.event_locations + their gates
   const [occurrences, setOccurrences] = useState([
     { location_id: '', date: '', start_time: '', end_time: '', entry_point_ids: [] },
   ]);
 
-  // UX state
+  // UX
   const [submitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [statusType, setStatusType] = useState(''); // success | error
@@ -59,11 +53,14 @@ export default function EventCreate() {
   useEffect(() => {
     (async () => {
       try {
-        const [{ data: t }, { data: locs }, { data: eps }] = await Promise.all([
-          supabase.from('event_types').select('id, name, code, status').order('name'),
-          supabase.from('locations').select('id, name').order('name'),
-          supabase.from('entry_points').select('id, name, location_id').order('name'),
+        const [{ data: t, error: tErr }, { data: locs, error: lErr }, { data: eps, error: eErr }] = await Promise.all([
+          supabase.schema(SCHEMA).from('event_types').select('id,name,code,status').order('name'),
+          supabase.schema(SCHEMA).from('locations').select('id,name').order('name'),
+          supabase.schema(SCHEMA).from('entry_points').select('id,name,location_id,status').order('name'),
         ]);
+
+        if (tErr || lErr || eErr) throw tErr || lErr || eErr;
+
         setTypes((t || []).filter(r => (r.status || 'active') === 'active'));
         setLocations(locs || []);
         setEntryPoints((eps || []).filter(ep => (ep.status || 'active') === 'active'));
@@ -79,9 +76,9 @@ export default function EventCreate() {
     setStatusType(kind || '');
   };
 
-  // Helpers for controlled updates
-  const updateProgram = (field, value) => {
-    setProgram(p => ({ ...p, [field]: value }));
+  // helpers to mutate state
+  const updateEventInfo = (field, value) => {
+    setEventInfo(p => ({ ...p, [field]: value }));
     if (statusMessage) setStatus('', '');
   };
 
@@ -89,10 +86,7 @@ export default function EventCreate() {
     setOccurrences(list => {
       const copy = [...list];
       copy[idx] = { ...copy[idx], [field]: value };
-      // Reset gates if location changed
-      if (field === 'location_id') {
-        copy[idx].entry_point_ids = [];
-      }
+      if (field === 'location_id') copy[idx].entry_point_ids = [];
       return copy;
     });
     if (statusMessage) setStatus('', '');
@@ -109,10 +103,10 @@ export default function EventCreate() {
     setOccurrences(list => list.filter((_, i) => i !== idx));
   };
 
-  // Validation
+  // Validation (client-side)
   const validate = () => {
-    if (!program.title.trim()) return 'Event title is required.';
-    if (!String(program.event_type_id)) return 'Event Type is required.';
+    if (!eventInfo.title.trim()) return 'Event title is required.';
+    if (!String(eventInfo.event_type_id)) return 'Event Type is required.';
     if (!occurrences.length) return 'At least one location is required.';
     for (let i = 0; i < occurrences.length; i++) {
       const oc = occurrences[i];
@@ -128,7 +122,7 @@ export default function EventCreate() {
     return null;
   };
 
-  // Submit handler
+  // Submit → One RPC (transactional)
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
     setStatus('', '');
@@ -138,69 +132,37 @@ export default function EventCreate() {
     try {
       setSubmitting(true);
 
-      // 1) Create Event
-      const programPayload = {
-        title: program.title.trim(),
-        event_type_id: Number(program.event_type_id),
-        description: program.description?.trim() || null,
-        jaman_included: !!program.jaman_included,
-        require_print: !!program.require_print,
-        status: 'scheduled',
+      // payloads for RPC
+      const p_event = {
+        title: eventInfo.title.trim(),
+        event_type_id: Number(eventInfo.event_type_id) || null,
+        description: eventInfo.description?.trim() || null,
+        jaman_included: !!eventInfo.jaman_included,
+        require_print: !!eventInfo.require_print,
       };
 
-      const { data: prog, error: pErr } = await supabase
-        .from('programs')
-        .insert(programPayload)
-        .select()
-        .single();
+      const p_occurrences = occurrences.map(oc => ({
+        location_id: Number(oc.location_id),
+        date: oc.date, // "YYYY-MM-DD"
+        start_time: oc.start_time, // "HH:mm" (DB casts)
+        end_time: oc.end_time || null,
+        entry_point_ids: (oc.entry_point_ids || []).map(Number),
+      }));
 
-      if (pErr) throw new Error(`Event create failed: ${pErr.message}`);
+      const { data, error } = await supabase
+        .schema(SCHEMA)
+        .rpc('create_event_with_locations', { p_event, p_occurrences });
 
-      // 2) Create Location (events rows), one per item
-      //    Use program title to populate event.title (your events table requires title)
-      const createdEvents = [];
-      for (const oc of occurrences) {
-        const loc = locations.find(l => String(l.id) === String(oc.location_id));
-        const eventTitle = loc ? `${programPayload.title} – ${loc.name}` : programPayload.title;
+      if (error) throw error;
 
-        const eventPayload = {
-          program_id: prog.id,
-          title: eventTitle,
-          type: null, // optional legacy text field; keep null to avoid conflicts
-          description: programPayload.description, // reuse program description
-          date: oc.date,
-          start_time: oc.start_time,
-          end_time: oc.end_time || null,
-          location_id: Number(oc.location_id),
-          jaman_needed: programPayload.jaman_included,
-          print_needed: programPayload.require_print,
-          event_type_id: programPayload.event_type_id,
-        };
+      const out = Array.isArray(data) ? data[0] : data;
+      setStatus(
+        `Created Event Successfully.`,
+        'success'
+      );
 
-        const { data: ev, error: eErr } = await supabase
-          .from('events')
-          .insert(eventPayload)
-          .select()
-          .single();
-        if (eErr) throw new Error(`Occurrence create failed: ${eErr.message}`);
-
-        createdEvents.push({ event: ev, entry_point_ids: (oc.entry_point_ids || []).map(Number) });
-      }
-
-      // 3) Map gates to occurrences
-      for (const { event, entry_point_ids } of createdEvents) {
-        if (!entry_point_ids.length) continue; // optional
-        const rows = entry_point_ids.map(id => ({
-          event_id: event.id,
-          entry_point_id: id,
-        }));
-        const { error: mapErr } = await supabase.from('event_entry_points').insert(rows);
-        if (mapErr) throw new Error(`Gate mapping failed: ${mapErr.message}`);
-      }
-
-      setStatus('Event & occurrences created successfully.', 'success');
-      // Reset form
-      setProgram({
+      // Reset
+      setEventInfo({
         title: '',
         event_type_id: '',
         description: '',
@@ -208,19 +170,15 @@ export default function EventCreate() {
         require_print: false,
       });
       setOccurrences([{ location_id: '', date: '', start_time: '', end_time: '', entry_point_ids: [] }]);
-
-      // Optionally navigate back to Events list:
-      // setTimeout(() => (window.location.href = '/admin/events'), 800);
-
     } catch (ex) {
       console.error(ex);
-      setStatus(ex.message || 'Unexpected error while creating program & events.', 'error');
+      setStatus(ex.message || 'Failed to create event.', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // UI helpers
+  // UI styles
   const label = { display: 'block', fontWeight: 800, marginBottom: 8 };
   const input = {
     width: '100%', height: 40, borderRadius: 5, border: 'none', outline: 'none',
@@ -228,15 +186,13 @@ export default function EventCreate() {
   };
   const textareaStyle = { ...input, height: 120 };
   const selectStyle = { ...input, height: 40 };
-  const badge = {
-    background: '#A9DFBF', color: '#1C1C1C', borderRadius: 999, padding: '6px 10px', fontWeight: 800,
-  };
+  const badge = { background: '#A9DFBF', color: '#1C1C1C', borderRadius: 999, padding: '6px 10px', fontWeight: 800 };
   const eventGrid = { display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr 1fr', gap: isNarrow ? 12 : 16, padding: '10px 10px 10px 0px' };
   const occurrenceGrid = { display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr', gap: isNarrow ? 12 : 16, padding: '10px 10px 10px 0px' };
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F5F5DC', color: '#1C1C1C', padding: isNarrow ? 16 : 24 }}>
-      <h1 style={{ marginTop: 0, fontSize: isNarrow ? 28 : 36, fontWeight: 800 }}>Create Events & Locations</h1>
+      <h1 style={{ marginTop: 0, fontSize: isNarrow ? 28 : 36, fontWeight: 800 }}>Create Event & Locations</h1>
 
       {/* EVENT CARD */}
       <div style={{ background: '#A9DFBF', borderRadius: 16, padding: isNarrow ? 20 : 30, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
@@ -251,8 +207,8 @@ export default function EventCreate() {
             <input
               style={input}
               placeholder="e.g., Urus Majlis"
-              value={program.title}
-              onChange={(e) => updateProgram('title', e.target.value)}
+              value={eventInfo.title}
+              onChange={(e) => updateEventInfo('title', e.target.value)}
             />
           </div>
 
@@ -261,8 +217,8 @@ export default function EventCreate() {
               <label style={label}>Event Type *</label>
               <select
                 style={selectStyle}
-                value={program.event_type_id}
-                onChange={(e) => updateProgram('event_type_id', e.target.value)}
+                value={eventInfo.event_type_id}
+                onChange={(e) => updateEventInfo('event_type_id', e.target.value)}
               >
                 <option value="">Select type</option>
                 {types.map(t => (
@@ -272,22 +228,22 @@ export default function EventCreate() {
             </div>
             <div>
               <label style={label}>Jaman Included?</label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 5, padding: '0px 14px 0px 14px', height: 40, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 5, padding: '0px 14px', height: 40, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
                 <input
                   type="checkbox"
-                  checked={program.jaman_included}
-                  onChange={(e) => updateProgram('jaman_included', e.target.checked)}
+                  checked={eventInfo.jaman_included}
+                  onChange={(e) => updateEventInfo('jaman_included', e.target.checked)}
                 />
                 <span style={{ fontWeight: 800 }}>Food (Jaman) is included</span>
               </label>
             </div>
             <div>
               <label style={label}>Require Print?</label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 5, padding: '0px 14px 0px 14px', height: 40, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', borderRadius: 5, padding: '0px 14px', height: 40, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
                 <input
                   type="checkbox"
-                  checked={program.require_print}
-                  onChange={(e) => updateProgram('require_print', e.target.checked)}
+                  checked={eventInfo.require_print}
+                  onChange={(e) => updateEventInfo('require_print', e.target.checked)}
                 />
                 <span style={{ fontWeight: 800 }}>Enable pass/label printing</span>
               </label>
@@ -299,8 +255,8 @@ export default function EventCreate() {
             <textarea
               style={textareaStyle}
               placeholder="Optional details"
-              value={program.description}
-              onChange={(e) => updateProgram('description', e.target.value)}
+              value={eventInfo.description}
+              onChange={(e) => updateEventInfo('description', e.target.value)}
             />
           </div>
         </div>
@@ -434,7 +390,7 @@ export default function EventCreate() {
             opacity: submitting ? 0.7 : 1
           }}
         >
-          {submitting ? 'Creating…' : 'Create Event & Location'}
+          {submitting ? 'Creating…' : 'Create Event & Locations'}
         </button>
         <button
           type="button"
