@@ -20,6 +20,7 @@ import DumpPage from './pages/admin/DumpPage';
 // ag-Grid (register community modules once)
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import ViewScans from './pages/admin/ViewScans';
+import ScanSetupPage from './pages/ScanSetupPage';
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 function App() {
@@ -151,6 +152,7 @@ function App() {
       <Routes>
         {/* Public / Shared */}
         <Route path="/" element={<LandingPage user={user} role={role} />} />
+        <Route path="/scan/setup" element={<ScanSetupPage />} />
         <Route path="/scan" element={<ScanPage user={user} />} />
 
         {/* Admin layout + nested routes */}

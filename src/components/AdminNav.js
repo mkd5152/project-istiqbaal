@@ -28,6 +28,7 @@ const adminNav = [
         label: 'Scans',
         children: [
             { label: 'Scan ITS', path: '/scan' },
+            { label: 'Scan ITS Setup', path: '/scan/setup' },
             { label: 'View Scanned ITS', path: '/admin/view-scans' },
         ],
     },
