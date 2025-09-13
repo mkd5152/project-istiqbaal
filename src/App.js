@@ -148,7 +148,7 @@ function App() {
     role === 'admin' ? children : <Navigate to="/" replace />;
 
   return (
-    <BrowserRouter basename={process.env.PUBLIC_URL || '/'}>
+    <BrowserRouter>
       <Routes>
         {/* Public / Shared */}
         <Route path="/" element={<LandingPage user={user} role={role} />} />
