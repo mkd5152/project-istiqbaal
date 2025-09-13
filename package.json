@@ -2,7 +2,7 @@
   "name": "its-scanner",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://h-huzaifa.github.io/its-scanner",
+  "homepage": "https://mkd5152.github.io/project-istiqbaal/",
   "dependencies": {
     "@supabase/auth-ui-react": "^0.4.7",
     "@supabase/auth-ui-shared": "^0.1.8",
