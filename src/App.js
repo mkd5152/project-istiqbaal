@@ -152,8 +152,8 @@ function App() {
     try {
       const p = new URL(pub).pathname || '/';
       return p.endsWith('/') ? p : `${p}/`;
-    } catch {
-      return pub.startsWith('/') ? pub : '/';
+    } catch (e) {
+      return '/';
     }
   };
   const BASENAME = getBasename(process.env.PUBLIC_URL);
