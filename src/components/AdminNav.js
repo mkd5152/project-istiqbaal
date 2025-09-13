@@ -53,14 +53,23 @@ export default function AdminNav() {
         setOpenDropdown(null);
     }, [location.pathname]);
 
-    const handleLogout = async () => {
+    async function handleLogout() {
         try {
-            await supabase.auth.signOut();
-            navigate('/', { replace: true });
-        } catch (e) {
-            alert('Logout failed');
+            // small retry loop – logout failing is particularly frustrating
+            let lastErr;
+            for (let i = 0; i < 2; i++) {
+                const { error } = await supabase.auth.signOut();
+                if (!error) break;
+                lastErr = error;
+                await new Promise(r => setTimeout(r, 250));
+            }
+            // Clean up realtime sockets just in case
+            try { supabase.realtime.removeAllChannels(); } catch { }
+            window.location.href = process.env.PUBLIC_URL || '/';
+        } catch {
+            alert('Logout failed, please refresh.');
         }
-    };
+    }
 
     const isParentActive = (item) => {
         if (!item.children) return false;

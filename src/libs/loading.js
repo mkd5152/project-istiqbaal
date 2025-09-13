@@ -52,10 +52,36 @@ export function loadingEnd() {
   emit();
 }
 
+async function resilientFetch(input, init, { timeoutMs = 12000, retries = 2 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort('timeout'), timeoutMs);
+    try {
+      const res = await fetch(input, { ...init, signal: controller.signal });
+      clearTimeout(t);
+      return res;
+    } catch (err) {
+      clearTimeout(t);
+      lastErr = err;
+      // Retry on network-ish errors only
+      const name = err?.name || '';
+      const isTransient = name === 'AbortError' || name === 'TypeError' || String(err?.message || '').includes('Failed to fetch');
+      if (attempt < retries && isTransient) {
+        // exponential-ish backoff 200ms, 400ms, ...
+        await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 export async function trackedFetch(input, init) {
   loadingStart();
   try {
-    return await fetch(input, init);
+    return await resilientFetch(input, init);
   } finally {
     loadingEnd();
   }

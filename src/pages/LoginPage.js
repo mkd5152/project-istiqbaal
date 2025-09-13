@@ -11,9 +11,9 @@ export default function LoginPage({ onLogin, setRole }) {
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await supabase.auth.signOut();
-      }
+      // if (session?.user) {
+      //   await supabase.auth.signOut();
+      // }
     })();
   }, []);
 
@@ -26,10 +26,8 @@ export default function LoginPage({ onLogin, setRole }) {
       setSubmitting(true);
 
       const email = `${its8}@its-login.com`;
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password: its8,
-      });
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password: its8 });
 
       if (error) {
         const msg = (error.message || '').toLowerCase();
@@ -43,11 +41,10 @@ export default function LoginPage({ onLogin, setRole }) {
         .from('users')
         .select('role,status,deleted_at,its_number')
         .eq('its_number', its8)
-        .limit(1)
         .maybeSingle();
 
       if (uerr || !urow || urow.deleted_at || (urow.status && urow.status !== 'active')) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut().catch(() => { });
         return alert('Your account is not provisioned/active. Please ask an admin.');
       }
 
@@ -55,7 +52,7 @@ export default function LoginPage({ onLogin, setRole }) {
       setRole?.(urow.role ?? null);
     } catch (err) {
       console.error(err);
-      alert('Login failed. Please try again.');
+      alert('Login failed (network). Please try again.');
     } finally {
       setSubmitting(false);
     }
