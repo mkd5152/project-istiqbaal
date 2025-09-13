@@ -1,4 +1,4 @@
-// src/libs/authRedirect.js
+// src/libs/authRedirect.js 
 export function getAuthRedirectURL(path = '') {
   // PUBLIC_URL is "/project-istiqbaal" in production and empty on localhost
   const base = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
