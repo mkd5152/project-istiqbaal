@@ -1,56 +1,43 @@
-name: Build and Deploy (GitHub Pages)
+# .github/workflows/deploy.yml
+name: Deploy to GitHub Pages
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      REACT_APP_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      REACT_APP_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      REACT_APP_SUPABASE_DB: ${{ vars.REACT_APP_SUPABASE_DB }}
-      PUBLIC_URL: ${{ vars.PUBLIC_URL }}
-      CI: ${{ vars.CI || 'false' }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
+      - run: npm ci
 
-      - name: Install
-        run: npm ci
-
+      # Build with env variables injected (CRA needs REACT_APP_* at build time)
       - name: Build
         run: npm run build
+        env:
+          REACT_APP_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          REACT_APP_SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          REACT_APP_SUPABASE_DB:  ${{ vars.SUPABASE_DB || 'itsscanning' }}
+          # For CRA on GH Pages, set PUBLIC_URL as well
+          PUBLIC_URL: https://mkd5152.github.io/project-istiqbaal
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v3
         with:
-          path: build
+          path: ./build
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
+      - id: deploy
         uses: actions/deploy-pages@v4
