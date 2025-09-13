@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { trackedFetch } from './libs/loading';
 
-const supabaseUrl = (process.env.REACT_APP_SUPABASE_URL || '').replace(/\/+$/, '');
+
+const proxyUrl = process.env.REACT_APP_SUPABASE_PROXY_URL;
+const directUrl = (process.env.REACT_APP_SUPABASE_URL || '').replace(/\/+$/, '');
+const supabaseUrl = proxyUrl || directUrl;
 const supabaseKey = process.env.REACT_APP_SUPABASE_KEY || '';
 
 if (!supabaseUrl || !supabaseKey) {
@@ -15,6 +18,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     autoRefreshToken: true,
     detectSessionInUrl: false,
     storageKey: 'sb-istiqbaal-auth',
+    flowType: 'pkce'
   },
   global: {
     fetch: trackedFetch,
