@@ -25,10 +25,10 @@ jobs:
       - name: Build
         run: npm run build
         env:
+          CI: false
           REACT_APP_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           REACT_APP_SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           REACT_APP_SUPABASE_DB:  ${{ vars.SUPABASE_DB || 'itsscanning' }}
-          # For CRA on GH Pages, set PUBLIC_URL as well
           PUBLIC_URL: https://mkd5152.github.io/project-istiqbaal
 
       - uses: actions/upload-pages-artifact@v3
