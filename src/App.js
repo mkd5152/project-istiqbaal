@@ -147,8 +147,19 @@ function App() {
   const AdminRoute = ({ children }) =>
     role === 'admin' ? children : <Navigate to="/" replace />;
 
+  const getBasename = (pub) => {
+    if (!pub) return '/';
+    try {
+      const p = new URL(pub).pathname || '/';
+      return p.endsWith('/') ? p : `${p}/`;
+    } catch {
+      return pub.startsWith('/') ? pub : '/';
+    }
+  };
+  const BASENAME = getBasename(process.env.PUBLIC_URL);
+
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={BASENAME}>
       <Routes>
         {/* Public / Shared */}
         <Route path="/" element={<LandingPage user={user} role={role} />} />
