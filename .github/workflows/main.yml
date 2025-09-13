@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]   # or master
+    branches: [ master ]  # or master if that's your default
 
 permissions:
   contents: read
@@ -19,18 +19,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # If it's a Node project, set up Node & build
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
-      - run: npm run build   # make sure this outputs to ./dist or ./build
 
-      # Change this path if your build output is not "dist"
+      - run: npm ci
+      - run: npm run build
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist
+          path: ./build
 
   deploy:
     needs: build
