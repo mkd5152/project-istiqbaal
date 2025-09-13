@@ -9,12 +9,15 @@ const ALLOW_ORIGINS = [
 
 function corsHeaders(req) {
   const origin = req.headers.get('origin') || '';
-  const allowed = ALLOW_ORIGINS.find((o) => origin.startsWith(o)) || ALLOW_ORIGINS[0];
+  const allowed =
+    ALLOW_ORIGINS.find((o) => origin === o || origin.startsWith(o)) || ALLOW_ORIGINS[0];
+
   return {
     'Access-Control-Allow-Origin': allowed,
     'Vary': 'Origin',
     'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-supabase-api, x-authorization',
+    'Access-Control-Allow-Headers':
+      'authorization, apikey, content-type, x-client-info, x-supabase-api, x-authorization',
     'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS',
   };
 }
@@ -25,8 +28,8 @@ export default async function handler(req) {
     return new Response(null, { status: 204, headers: corsHeaders(req) });
   }
 
-  const upstreamBase = process.env.SUPABASE_URL;      // e.g. https://xxxxx.supabase.co
-  const anonKey      = process.env.SUPABASE_ANON_KEY; // your anon key
+  const upstreamBase = process.env.SUPABASE_URL;      // e.g. https://xxxx.supabase.co
+  const anonKey      = process.env.SUPABASE_ANON_KEY; // anon key
 
   if (!upstreamBase || !anonKey) {
     return new Response(JSON.stringify({ error: 'Proxy misconfigured' }), {
@@ -36,30 +39,52 @@ export default async function handler(req) {
   }
 
   const url = new URL(req.url);
-  // Strip /api/supabase/ and forward the rest (auth/v1, rest/v1, etc.)
   const forwardPath = url.pathname.replace(/^\/api\/supabase\/?/, '');
   const upstreamUrl = `${upstreamBase}/${forwardPath}${url.search || ''}`;
 
+  // Build headers to upstream
   const hdr = new Headers(req.headers);
   hdr.delete('host');
+  hdr.delete('connection');
+  hdr.delete('content-length');
+  // Let the platform/negotiate encodings; avoid tricky mobile decoding issues
+  hdr.delete('accept-encoding');
+
   if (!hdr.get('apikey')) hdr.set('apikey', anonKey);
   if (!hdr.get('x-client-info')) hdr.set('x-client-info', 'vercel-edge-proxy');
 
-  const init = {
+  // Forward the original request (body included) to upstream
+  const upstreamReq = new Request(upstreamUrl, {
     method: req.method,
     headers: hdr,
     body: ['GET', 'HEAD'].includes(req.method) ? undefined : req.body,
     redirect: 'manual',
-  };
+  });
 
   try {
-    const upstreamRes = await fetch(upstreamUrl, init);
+    const upstreamRes = await fetch(upstreamReq);
+
+    // MATERIALIZE BODY to avoid partial/stream issues on some mobile networks
+    const body = await upstreamRes.arrayBuffer();
+
+    // Prepare response headers
     const respHeaders = new Headers(upstreamRes.headers);
+    // Remove hop-by-hop/encoding headers that can mismatch when we re-wrap the body
+    respHeaders.delete('content-encoding');
+    respHeaders.delete('transfer-encoding');
+    respHeaders.delete('content-length'); // let browser compute it
+    // CORS
     const cors = corsHeaders(req);
     for (const [k, v] of Object.entries(cors)) respHeaders.set(k, v);
 
-    return new Response(upstreamRes.body, {
+    // Ensure JSON content-type is preserved for GoTrue (auth) responses
+    if (!respHeaders.has('content-type')) {
+      respHeaders.set('content-type', 'application/json; charset=utf-8');
+    }
+
+    return new Response(body, {
       status: upstreamRes.status,
+      statusText: upstreamRes.statusText,
       headers: respHeaders,
     });
   } catch (e) {
