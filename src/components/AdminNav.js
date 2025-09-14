@@ -1,6 +1,6 @@
 // src/components/AdminNav.jsx
 import React, { useEffect, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 // import { adminNav } from '../nav/adminNav';
 import CrestPng from '../assets/tkmLogo.png';
@@ -39,7 +39,6 @@ export default function AdminNav() {
     const [mobileOpen, setMobileOpen] = useState(false);
     const [openDropdown, setOpenDropdown] = useState(null); // label of open dropdown
     const location = useLocation();
-    const navigate = useNavigate();
 
     useEffect(() => {
         const onResize = () => setIsNarrow(window.innerWidth < 900);
@@ -55,12 +54,9 @@ export default function AdminNav() {
 
     async function handleLogout() {
         try {
-            // small retry loop – logout failing is particularly frustrating
-            let lastErr;
             for (let i = 0; i < 2; i++) {
                 const { error } = await supabase.auth.signOut();
                 if (!error) break;
-                lastErr = error;
                 await new Promise(r => setTimeout(r, 250));
             }
             // Clean up realtime sockets just in case

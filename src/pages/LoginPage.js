@@ -10,7 +10,7 @@ export default function LoginPage({ onLogin, setRole }) {
   // If a leftover session exists, sign it out so we don’t confuse the operator
   useEffect(() => {
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      // const { data: { session } } = await supabase.auth.getSession();
       // if (session?.user) {
       //   await supabase.auth.signOut();
       // }
