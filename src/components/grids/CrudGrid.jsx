@@ -32,10 +32,10 @@ const CrudGrid = forwardRef(function CrudGrid(
     validate,
     pageSize = 20,
     title,
-    readOnly = false,          // NEW
-    showAddButton = true,      // NEW
-    showRefreshButton = true,  // NEW
-    showActions = true,        // NEW
+    readOnly = false,
+    showAddButton = true,
+    showRefreshButton = true,
+    showActions = true,
   },
   ref
 ) {
@@ -75,12 +75,15 @@ const CrudGrid = forwardRef(function CrudGrid(
       const blank = buildNewRow ? buildNewRow() : {};
       const newRow = { tempId, __isNew: true, ...blank };
       api.applyTransaction({ add: [newRow], addIndex: 0 });
-      // start editing first editable column
       const firstEditable = columns.find(c => c.editable && !c.hide)?.field || columns[0]?.field;
       setEditingRowId(tempId);
       setTimeout(() => api.startEditingCell({ rowIndex: 0, colKey: firstEditable }), 0);
     },
-    refresh() { load(); }
+    refresh() { load(); },
+    /** Export the current grid as CSV. Pass ag-Grid CSV options if needed. */
+    exportCsv(opts) {
+      gridRef.current?.api?.exportDataAsCsv?.(opts || {});
+    },
   }), [buildNewRow, columns, load, readOnly]);
 
   const onEdit = useCallback((row) => {
@@ -123,16 +126,15 @@ const CrudGrid = forwardRef(function CrudGrid(
 
   const isRowValid = useCallback((row) => (validate ? !!validate(row) : true), [validate]);
 
-  // Persist existing row edits
   const onRowValueChanged = useCallback(async (e) => {
     if (readOnly) return;
     const r = e.data;
-    if (r.__isNew) return; // handled separately
+    if (r.__isNew) return;
     try {
       await updateRow(r);
     } catch (err) {
       alert('Save failed: ' + (err.message || 'Unknown error'));
-      load(); // revert
+      load();
     }
   }, [updateRow, load, readOnly]);
 
@@ -147,13 +149,12 @@ const CrudGrid = forwardRef(function CrudGrid(
   }, [readOnly]);
 
   const commitEdits = useCallback(() => {
-    gridRef.current?.api?.stopEditing(false); // save
+    gridRef.current?.api?.stopEditing(false);
   }, []);
   const cancelEdits = useCallback(() => {
-    gridRef.current?.api?.stopEditing(true);  // cancel
+    gridRef.current?.api?.stopEditing(true);
   }, []);
 
-  // Build columns: force editable=false when readOnly
   const baseColumns = useMemo(
     () => (readOnly ? columns.map(c => ({ ...c, editable: false })) : columns),
     [columns, readOnly]
@@ -188,7 +189,6 @@ const CrudGrid = forwardRef(function CrudGrid(
     [baseColumns, actionCol, readOnly, showActions]
   );
 
-  // header styles & buttons
   const headerStyle = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10
   };
