@@ -192,6 +192,7 @@ function App() {
           {/* Events */}
           <Route path="events" element={<EventsPage />} />
           <Route path="events/new" element={<EventCreate />} />
+          <Route path="events/:id" element={<EventCreate />} />
         </Route>
 
         {/* Fallback */}

@@ -3,16 +3,15 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CrudGrid from '../../components/grids/CrudGrid';
 import { db } from '../../libs';
 import { supabase } from '../../supabaseClient';
+import { Link } from 'react-router-dom';
 
 const SCHEMA = process.env.REACT_APP_SUPABASE_DB || 'public';
 const TABLE = 'events';
 
-// Load and memoize event types (id -> name)
 function useEventTypeMap() {
   const [map, setMap] = useState(() => new Map());
 
   const load = useCallback(async () => {
-    // minimal columns; adjust if your table differs
     const { data, error } = await supabase
       .schema(SCHEMA)
       .from('event_types')
@@ -30,13 +29,11 @@ function useEventTypeMap() {
   return { map, reload: load };
 }
 
-// Read-only CRUD binding for events
 const eventsCrud = db.makeCrud({
   schema: SCHEMA,
   table: TABLE,
   pk: 'id',
-  select:
-    'id,event_type_id,title,description,jaman_included,require_print,created_by,created_at,deleted_at',
+  select: 'id,event_type_id,title,description,jaman_included,require_print,created_by,created_at,deleted_at',
 });
 
 export default function EventsGrid() {
@@ -44,7 +41,6 @@ export default function EventsGrid() {
   const { map: typeMap, reload: reloadTypes } = useEventTypeMap();
 
   const loadRows = useCallback(async () => {
-    // Load both (event types for formatter + events for rows)
     const [rows] = await Promise.all([
       eventsCrud.load({ orderBy: 'id', ascending: true }),
       reloadTypes(),
@@ -57,51 +53,17 @@ export default function EventsGrid() {
   const columns = useMemo(
     () => [
       { field: 'id', hide: true },
-
-      {
-        headerName: 'Title',
-        field: 'title',
-        flex: 1,
-        minWidth: 220,
-      },
-
+      { headerName: 'Title', field: 'title', flex: 1, minWidth: 220 },
       {
         headerName: 'Event Type',
         field: 'event_type_id',
         minWidth: 200,
         valueFormatter: (p) => (p.value ? typeMap.get(Number(p.value)) || `Type #${p.value}` : ''),
       },
-
-      {
-        headerName: 'Jaman Included',
-        field: 'jaman_included',
-        width: 160,
-        valueFormatter: (p) => yesNo(!!p.value),
-      },
-
-      {
-        headerName: 'Require Print',
-        field: 'require_print',
-        width: 150,
-        valueFormatter: (p) => yesNo(!!p.value),
-      },
-
-      {
-        headerName: 'Description',
-        field: 'description',
-        flex: 1.2,
-        minWidth: 260,
-        valueFormatter: (p) => (p.value ? String(p.value) : ''),
-      },
-
-      {
-        headerName: 'Created By',
-        field: 'created_by',
-        minWidth: 220,
-        valueFormatter: (p) => (p.value ? String(p.value) : ''),
-        tooltipValueGetter: (p) => (p.value ? String(p.value) : ''),
-      },
-
+      { headerName: 'Jaman Included', field: 'jaman_included', width: 160, valueFormatter: (p) => yesNo(!!p.value) },
+      { headerName: 'Require Print', field: 'require_print', width: 150, valueFormatter: (p) => yesNo(!!p.value) },
+      { headerName: 'Description', field: 'description', flex: 1.2, minWidth: 260, valueFormatter: (p) => (p.value ? String(p.value) : '') },
+      { headerName: 'Created By', field: 'created_by', minWidth: 220, valueFormatter: (p) => (p.value ? String(p.value) : ''), tooltipValueGetter: (p) => (p.value ? String(p.value) : '') },
       {
         headerName: 'Created',
         field: 'created_at',
@@ -109,13 +71,42 @@ export default function EventsGrid() {
         valueFormatter: (p) =>
           p.value
             ? new Date(p.value).toLocaleString('en-GB', {
-                year: 'numeric',
-                month: 'short',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-              })
+              year: 'numeric',
+              month: 'short',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
             : '',
+      },
+      {
+        headerName: '',
+        field: '__view',
+        width: 120,
+        minWidth: 110,
+        maxWidth: 140,
+        pinned: 'right',
+        suppressMenu: true,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        cellRenderer: (p) => {
+          const id = p?.data?.id;
+          const style = {
+            background: '#1C1C1C',
+            color: '#fff',
+            border: 'none',
+            padding: '8px 12px',
+            borderRadius: 10,
+            fontWeight: 800,
+            cursor: 'pointer',
+          };
+          return (
+            <Link to={`/admin/events/${id}`} title="View / Edit">
+              <button style={style}>View</button>
+            </Link>
+          );
+        },
       },
     ],
     [typeMap]
@@ -127,7 +118,6 @@ export default function EventsGrid() {
       title="All Events"
       columns={columns}
       loadRows={loadRows}
-      // READ-ONLY — no editing/actions/add
       readOnly
       showActions={false}
       showAddButton={false}

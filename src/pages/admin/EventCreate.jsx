@@ -1,10 +1,14 @@
 // src/pages/admin/EventCreate.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../supabaseClient';
+import { useParams } from 'react-router-dom';
 
-const SCHEMA = process.env.REACT_APP_SUPABASE_DB; // "itsscanning"
+const SCHEMA = process.env.REACT_APP_SUPABASE_DB;
 
 export default function EventCreate() {
+  const { id } = useParams();
+  const isEdit = !!id;
+
   const [isNarrow, setIsNarrow] = useState(
     typeof window !== 'undefined' ? window.innerWidth < 900 : false
   );
@@ -33,12 +37,13 @@ export default function EventCreate() {
     require_print: false,
   });
 
-  // Occurrences -> itsscanning.event_locations + their gates
+  // Occurrences (for both create and edit; in edit we load existing with ids)
   const [occurrences, setOccurrences] = useState([
-    { location_id: '', date: '', start_time: '', end_time: '', entry_point_ids: [] },
+    { id: undefined, location_id: '', date: '', start_time: '', end_time: '', entry_point_ids: [] },
   ]);
 
   // UX
+  const [loading, setLoading] = useState(isEdit);
   const [submitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [statusType, setStatusType] = useState(''); // success | error
@@ -71,6 +76,74 @@ export default function EventCreate() {
     })();
   }, []);
 
+  // In EDIT mode, load the event + its occurrences + EEP mappings
+  useEffect(() => {
+    if (!isEdit) return;
+    (async () => {
+      try {
+        setLoading(true);
+
+        const [{ data: ev, error: evErr }, { data: els, error: elErr }] = await Promise.all([
+          supabase
+            .schema(SCHEMA)
+            .from('events')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle(),
+          supabase
+            .schema(SCHEMA)
+            .from('event_locations')
+            .select(`
+              id,
+              location_id,
+              event_date,
+              start_time,
+              end_time,
+              event_entry_points ( entry_point_id )
+            `)
+            .eq('event_id', id)
+            .is('deleted_at', null)
+            .order('id', { ascending: true }),
+        ]);
+
+        if (evErr) throw evErr;
+        if (!ev) {
+          setStatus('Event not found.', 'error');
+          return;
+        }
+        if (elErr) throw elErr;
+
+        setEventInfo({
+          title: ev.title || '',
+          event_type_id: ev.event_type_id ? String(ev.event_type_id) : '',
+          description: ev.description || '',
+          jaman_included: !!ev.jaman_included,
+          require_print: !!ev.require_print,
+        });
+
+        const occs = (els || []).map(el => ({
+          id: el.id,
+          location_id: el.location_id ? String(el.location_id) : '',
+          date: el.event_date ? String(el.event_date).slice(0, 10) : '',
+          start_time: el.start_time ? String(el.start_time).slice(0, 5) : '',
+          end_time: el.end_time ? String(el.end_time).slice(0, 5) : '',
+          entry_point_ids: Array.isArray(el.event_entry_points)
+            ? el.event_entry_points.map(x => String(x.entry_point_id))
+            : [],
+        }));
+
+        setOccurrences(occs.length ? occs : [
+          { id: undefined, location_id: '', date: '', start_time: '', end_time: '', entry_point_ids: [] },
+        ]);
+      } catch (err) {
+        console.error('Load event error', err);
+        setStatus('Failed to load event.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [isEdit, id]);
+
   const setStatus = (msg, kind) => {
     setStatusMessage(msg || '');
     setStatusType(kind || '');
@@ -95,7 +168,7 @@ export default function EventCreate() {
   const addOccurrence = () => {
     setOccurrences(list => [
       ...list,
-      { location_id: '', date: '', start_time: '', end_time: '', entry_point_ids: [] },
+      { id: undefined, location_id: '', date: '', start_time: '', end_time: '', entry_point_ids: [] },
     ]);
   };
 
@@ -122,7 +195,7 @@ export default function EventCreate() {
     return null;
   };
 
-  // Submit → One RPC (transactional)
+  // Submit → create or upsert (edit)
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
     setStatus('', '');
@@ -132,7 +205,6 @@ export default function EventCreate() {
     try {
       setSubmitting(true);
 
-      // payloads for RPC
       const p_event = {
         title: eventInfo.title.trim(),
         event_type_id: Number(eventInfo.event_type_id) || null,
@@ -142,26 +214,38 @@ export default function EventCreate() {
       };
 
       const p_occurrences = occurrences.map(oc => ({
+        id: oc.id ? Number(oc.id) : null,
         location_id: Number(oc.location_id),
-        date: oc.date, // "YYYY-MM-DD"
-        start_time: oc.start_time, // "HH:mm" (DB casts)
-        end_time: oc.end_time || null,
+        date: oc.date,                          // "YYYY-MM-DD"
+        start_time: oc.start_time,              // "HH:mm"
+        end_time: oc.end_time || null,          // nullable
         entry_point_ids: (oc.entry_point_ids || []).map(Number),
       }));
 
+      if (isEdit) {
+        const { error } = await supabase
+          .schema(SCHEMA)
+          .rpc('upsert_event_with_locations', {
+            p_event_id: Number(id),
+            p_event,
+            p_occurrences,
+          });
+
+        if (error) throw error;
+        setStatus('Event updated successfully.', 'success');
+        return;
+      }
+
+      // CREATE path (your existing RPC)
       const { data, error } = await supabase
         .schema(SCHEMA)
         .rpc('create_event_with_locations', { p_event, p_occurrences });
 
       if (error) throw error;
 
-      const out = Array.isArray(data) ? data[0] : data;
-      setStatus(
-        `Created Event Successfully.`,
-        'success'
-      );
+      setStatus('Created Event Successfully.', 'success');
 
-      // Reset
+      // Reset after create
       setEventInfo({
         title: '',
         event_type_id: '',
@@ -169,10 +253,10 @@ export default function EventCreate() {
         jaman_included: false,
         require_print: false,
       });
-      setOccurrences([{ location_id: '', date: '', start_time: '', end_time: '', entry_point_ids: [] }]);
+      setOccurrences([{ id: undefined, location_id: '', date: '', start_time: '', end_time: '', entry_point_ids: [] }]);
     } catch (ex) {
       console.error(ex);
-      setStatus(ex.message || 'Failed to create event.', 'error');
+      setStatus(ex.message || (isEdit ? 'Failed to update event.' : 'Failed to create event.'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -190,15 +274,21 @@ export default function EventCreate() {
   const eventGrid = { display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr 1fr', gap: isNarrow ? 12 : 16, padding: '10px 10px 10px 0px' };
   const occurrenceGrid = { display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr', gap: isNarrow ? 12 : 16, padding: '10px 10px 10px 0px' };
 
+  if (loading) {
+    return <div style={{ padding: 16, fontWeight: 800 }}>Loading…</div>;
+  }
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F5F5DC', color: '#1C1C1C', padding: isNarrow ? 16 : 24 }}>
-      <h1 style={{ marginTop: 0, fontSize: isNarrow ? 28 : 36, fontWeight: 800 }}>Create Event & Locations</h1>
+      <h1 style={{ marginTop: 0, fontSize: isNarrow ? 28 : 36, fontWeight: 800 }}>
+        {isEdit ? `Edit Event #${id}` : 'Create Event & Locations'}
+      </h1>
 
       {/* EVENT CARD */}
       <div style={{ background: '#A9DFBF', borderRadius: 16, padding: isNarrow ? 20 : 30, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <h2 style={{ margin: 0, fontSize: isNarrow ? 20 : 24, fontWeight: 800 }}>Event</h2>
-          <span style={badge}>Step 1</span>
+          <span style={badge}>{isEdit ? 'Edit' : 'Step 1'}</span>
         </div>
 
         <div style={{ display: 'grid', gap: 12 }}>
@@ -262,11 +352,11 @@ export default function EventCreate() {
         </div>
       </div>
 
-      {/* LOCATION CARD */}
+      {/* LOCATION CARD — used in BOTH create and edit */}
       <div style={{ marginTop: isNarrow ? 16 : 20, background: '#A9DFBF', borderRadius: 16, padding: isNarrow ? 14 : 18, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <h2 style={{ margin: 0, fontSize: isNarrow ? 20 : 24, fontWeight: 800 }}>Locations (Venue/Date/Time)</h2>
-          <span style={badge}>Step 2</span>
+          <span style={badge}>{isEdit ? 'Edit' : 'Step 2'}</span>
         </div>
 
         <div style={{ display: 'grid', gap: 16 }}>
@@ -275,7 +365,7 @@ export default function EventCreate() {
             const endInvalid = oc.end_time && oc.end_time <= oc.start_time;
 
             return (
-              <div key={idx} style={{ background: '#F5F5DC', borderRadius: 14, padding: isNarrow ? 12 : '20px 40px 20px 20px' }}>
+              <div key={oc.id ?? `new-${idx}`} style={{ background: '#F5F5DC', borderRadius: 14, padding: isNarrow ? 12 : '20px 40px 20px 20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div style={{ fontWeight: 800 }}>Location #{idx + 1}</div>
                   {occurrences.length > 1 && (
@@ -390,7 +480,7 @@ export default function EventCreate() {
             opacity: submitting ? 0.7 : 1
           }}
         >
-          {submitting ? 'Creating…' : 'Create Event & Locations'}
+          {submitting ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save Changes' : 'Create Event & Locations')}
         </button>
         <button
           type="button"
