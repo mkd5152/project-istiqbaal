@@ -237,7 +237,7 @@ export default function EventCreate() {
       }
 
       // CREATE path (your existing RPC)
-      const { data, error } = await supabase
+      const { error } = await supabase
         .schema(SCHEMA)
         .rpc('create_event_with_locations', { p_event, p_occurrences });
 
